@@ -8,3 +8,5 @@ https://tranco-list.eu/download/4QP9X/full
 
 ## one domain over 30 days
 
+set cron job at 1st each month
+
