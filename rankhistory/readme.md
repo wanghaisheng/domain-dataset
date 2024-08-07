@@ -2,8 +2,8 @@
 
 
 
-https://tranco-list.eu/download/4QP9X/1000000
-https://tranco-list.eu/download/4QP9X/full
+* https://tranco-list.eu/download/4QP9X/1000000
+* https://tranco-list.eu/download/4QP9X/full
 
 
 ## one domain over 30 days
