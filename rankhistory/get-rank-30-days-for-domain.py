@@ -353,13 +353,12 @@ async def extract_rank(content, domain):
 
 async def get_30d_rank(
     domain: str,
-    url: str,
     valid_proxies: list,
 ):
     async with semaphore:
         domain=cleandomain(domain)
 
-        url="https://tranco-list.eu/api/ranks/domain/{domain}"
+        url=f"https://tranco-list.eu/api/ranks/domain/{domain}"
 
         try:
             # with semaphore:
@@ -557,22 +556,16 @@ async def run_async_tasks():
 
         # logger.debug(domain)
 
-        for suffix in [
-            ""
-            #    ,'premium','price','#price','#pricing','pricing','price-plan','pricing-plan','upgrade','purchase'
-        ]:
+        logger.debug(f"add domain:{domain}")
 
-            url = domain + suffix
-            logger.debug(f"add domain:{domain}")
-
-            task = asyncio.create_task(
-                get_30d_rank(domain, domain + "/" + suffix, valid_proxies)
-            )
-            tasks.append(task)
-            if len(tasks) >= 100:
-                # Wait for the current batch of tasks to complete
-                await asyncio.gather(*tasks)
-                tasks = []
+        task = asyncio.create_task(
+            get_30d_rank(domain, valid_proxies)
+        )
+        tasks.append(task)
+        if len(tasks) >= 100:
+            # Wait for the current batch of tasks to complete
+            await asyncio.gather(*tasks)
+            tasks = []
     await asyncio.gather(*tasks)
 
 
