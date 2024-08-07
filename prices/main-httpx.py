@@ -278,9 +278,9 @@ async def extract_price(html_content, domain):
             "lang": lang,
             "currency": currency_symbol,
             # 'priceurl': domain.split('/')[-1],
-            "links": links,
-            "prices": prices,
-            "price-plans": prcieplan,
+            "links": json.dumps(links),
+            "prices": json.dumps(prices),
+            "priceplans": prcieplan,
             "raw": json.dumps(human_readble_text.replace("\r", " ").replace("\n", " ")),
         }
 
