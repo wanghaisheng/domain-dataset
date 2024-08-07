@@ -11,6 +11,7 @@ from datetime import datetime
 import pandas as pd
 from DataRecorder import Recorder
 import time
+import markdownify
 
 import httpx
 from dbhelper import DatabaseManager
@@ -35,7 +36,7 @@ tld_types = {}
 country_cctlds_symbols = {}
 country_symbols = {}
 # Semaphore to control concurrency
-semaphore = asyncio.Semaphore(5)  # Allow up to 5 concurrent tasks
+semaphore = asyncio.Semaphore(100)  # Allow up to 5 concurrent tasks
 
 # db_manager = DatabaseManager()
 filename = "majestic_million"
@@ -100,10 +101,15 @@ def get_cctld_symbols():
                 lang_names[lang_code] = lang_name
 
 
-def get_tld(domain: str):
+def get_full_tld(domain: str):
     """Extracts the top-level domain from a domain name."""
     parts = domain.split(".")
     return ".".join(parts[1:]) if len(parts) > 1 else parts[0]
+
+def get_tld(domain: str):
+    """Extracts the top-level domain from a domain name."""
+    parts = domain.split(".")
+    return parts[-1]
 
 
 async def get_proxy():
@@ -144,7 +150,7 @@ def get_country_symbols(rawtx):
     import py3langid as langid
 
     lang = langid.classify(rawtx)
-    currencylabel = country_symbols.get(lang, "$")
+    currencylabel = country_symbols.get(lang[0].upper(), "$")
     return currencylabel
 
 
@@ -166,6 +172,12 @@ async def extract_price(html_content, domain):
         # html_content = await response.text()
         # Extract text content from HTML
         soup = BeautifulSoup(html_content, "html.parser")
+        htmlpath='prices/html/'+domain+'.html'
+        if not  os.path.exists(htmlpath):
+            with open(
+                htmlpath, "w", encoding="utf8"
+            ) as f:
+                f.write(html_content)
 
         human_readble_text = gettext(html_content)
         lang = get_language_name(human_readble_text)
@@ -196,25 +208,9 @@ async def extract_price(html_content, domain):
         logger.info(f"prices texts:{prices}")
 
         logger.info(f"Found prices for {domain}: {prices}")
-        prcieplan = None
-        try:
 
-            # Find sections or divs where any children element text contains 'price' or 'pricing'
-            matching_elements = soup.find_all(
-                lambda tag: tag.name in ["section", "div"]
-                and any(
-                    text.lower() in ["price", "pricing"]
-                    for text in tag.text.lower().split()
-                )
-            )
-
-            # Collect all text content from matching elements
-            prcieplan = [element.get_text(strip=True) for element in matching_elements]
-        except:
-            pass
-        logger.info(f"Found prcieplan for {domain}: {prcieplan}")
         links = []
-        if len(prices) == 0 and len(prcieplan) == 0:
+        if len(prices) == 0:
 
             for logger_info in [
                 "check price link",
@@ -267,11 +263,53 @@ async def extract_price(html_content, domain):
                             "a", href=lambda href: href and "upgrade" in href.lower()
                         )["href"]
                     )
+        prcieplan = ''
+        try:
 
-        logger.info(f"add data:{domain}")
+            # Find sections or divs where any children element text contains 'price' or 'pricing'
+            matching_elements = soup.find_all(
+                lambda tag: tag.name in ["section", "div"]
+                and any(
+                    text.lower() in ["price", "pricing"]
+                    for text in tag.text.lower().split()
+                )
+                and any(
+                    text.lower() in ["year", "month"]
+                    for text in tag.text.lower().split()
+                )           
+                and any(
+                    text.lower() in [currency_symbol]
+                    for text in tag.text.lower().split()
+                )                     
+                
+                 )
+
+            # Collect all text content from matching elements
+            if  matching_elements and len(matching_elements)>0:
+                # prcieplan = [element.get_text(strip=True) for element in matching_elements]
+                prcieplan=[trafilatura.extract(element, output_format="txt") for element in matching_elements] 
+
+
+        except:
+            pass
+        logger.info(f"Found prcieplan for {domain}: {prcieplan}")
         raw = None
-
+        logger.info('convert html to md')
+        # Print only the main content
+        body_elm = soup.find("body")
+        webpage_text = ""
+        if body_elm:
+            webpage_text = markdownify.MarkdownConverter(newline_style='backslash').convert_soup(body_elm)
+        else:
+            webpage_text = markdownify.MarkdownConverter().convert_soup(soup)
+        mdpath='prices/md'+domain+'.md'
+        if not  os.path.exists(mdpath):
+            with open(
+                mdpath, "w", encoding="utf8"
+            ) as f:
+                f.write(webpage_text)        
         #  tag:body 会得到一个chromeFrame的类  没有text 会报错
+        logger.info(f"add data:{domain}")
 
         data = {
             "domain": domain,
@@ -281,7 +319,8 @@ async def extract_price(html_content, domain):
             "links": json.dumps(links),
             "prices": json.dumps(prices),
             "priceplans": prcieplan,
-            "raw": json.dumps(human_readble_text.replace("\r", " ").replace("\n", " ")),
+            'htmlpath':htmlpath,
+            "mdpath": mdpath,
         }
 
         # Logging the extracted data
@@ -350,12 +389,8 @@ async def fetch_data(url, valid_proxies=None, data_format="json", cookies=None):
                         if data_format == "json"
                         else  response.text
                     )
-                else:
-                    logger.debug(
-                        f"Task {url} failed on attempt {attempt}. Status code: {response.status_code}"
-                    )
-                    outcffile.add_data({"domain":url,'status':response.status_code})
-                    break
+
+                    # break
         except httpx.RequestError as exc:
             if attempt < retries:
                 logger.debug(f"Task {url} failed on attempt {attempt}. Retrying...{exc}")
@@ -369,6 +404,8 @@ async def fetch_data(url, valid_proxies=None, data_format="json", cookies=None):
 
                 # outfileerror.add_data([domain])
         except httpx.HTTPStatusError as exc:
+            outcffile.add_data({"domain":url,'status':exc.response.status_code})
+
             if attempt < retries:
                 logger.debug(f"Task {url} failed on attempt {attempt}. Retrying...{exc}")
                 logger.debug(
@@ -385,10 +422,10 @@ async def fetch_data(url, valid_proxies=None, data_format="json", cookies=None):
 
         except Exception as e:
             if attempt < retries:
-                logger.debug(f"Task {url} failed on attempt {attempt}. Retrying...{e}")
+                logger.error(f"Task {url} failed on attempt {attempt}. Retrying...{e}")
 
             else:
-                logger.debug(f"Task {url} failed on all {retries} attempts. Skipping.{e}")
+                logger.error(f"Task {url} failed on all {retries} attempts. Skipping.{e}")
                 # outfileerror.add_data([domain])
 
 
