@@ -1,4 +1,4 @@
-## query id use domain
+![image](https://github.com/user-attachments/assets/7e474275-f618-46aa-8e9e-510567f542e9)## query id use domain
 
                 f"https://radar.cloudflare.com/charts/ScansTable/fetch?domain={domain}&type=url&value={domain}",
 
@@ -6,6 +6,18 @@
 
 
 https://radar.cloudflare.com/scan/10d805b3-9dc9-4351-9ea0-d25fd79f077b/technology
+
+
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/cookies
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/dom
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/network
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/performance
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/security
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/summary
+https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/technology
+
+
 
 ## submit domain to get id
 
