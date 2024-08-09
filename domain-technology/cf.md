@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/7e474275-f618-46aa-8e9e-510567f542e9)## query id use domain
+## query id use domain
 
                 f"https://radar.cloudflare.com/charts/ScansTable/fetch?domain={domain}&type=url&value={domain}",
 
