@@ -5,9 +5,8 @@
 ## use id to get detail
 
 
-https://radar.cloudflare.com/scan/10d805b3-9dc9-4351-9ea0-d25fd79f077b/technology
 
-
+```
 https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56
 https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/cookies
 https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/dom
@@ -16,7 +15,7 @@ https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/performan
 https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/security
 https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/summary
 https://radar.cloudflare.com/scan/0054c017-7666-4f46-8cc4-d23dc8a15e56/technology
-
+```
 
 
 ## submit domain to get id
