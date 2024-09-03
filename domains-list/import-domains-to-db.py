@@ -9,8 +9,6 @@ import os
 import tempfile
 import glob
 
-## domcop data load to db
-
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -19,7 +17,7 @@ conn_params = {
     'host': 'shortly-strong-skylark-pdt.a1.pgedge.io',
     'user': 'admin',
     'database': 'domains',
-    'password': 'xxxxxxxxxx',
+    'password': 'U6Avx5p2yNo312gXH51waq78',
     'sslmode': 'require',
     'connect_timeout': 10  # Timeout in seconds
 }
@@ -75,12 +73,13 @@ def insert_domains_temp_table(connection, file_path, domain_column, batch_size=1
                         
                         try:
                             with connection.cursor() as cursor:
+                                cursor.execute("TRUNCATE temp_domains")  # Clear temp table before insert
                                 cursor.copy_expert(
                                     sql="COPY temp_domains (domain) FROM STDIN WITH CSV HEADER",
                                     file=csv_data
                                 )
                             connection.commit()
-                            logging.debug(f"Inserted batch of {len(batch)} domains.")
+                            logging.debug(f"Inserted batch of {len(batch)} domains into temp table.")
                         except Exception as e:
                             logging.error(f"Error during COPY operation: {e}")
                             connection.rollback()
@@ -98,12 +97,13 @@ def insert_domains_temp_table(connection, file_path, domain_column, batch_size=1
                     
                     try:
                         with connection.cursor() as cursor:
+                            cursor.execute("TRUNCATE temp_domains")  # Clear temp table before insert
                             cursor.copy_expert(
                                 sql="COPY temp_domains (domain) FROM STDIN WITH CSV HEADER",
                                 file=csv_data
                             )
                         connection.commit()
-                        logging.debug(f"Inserted final batch of {len(batch)} domains.")
+                        logging.debug(f"Inserted final batch of {len(batch)} domains into temp table.")
                     except Exception as e:
                         logging.error(f"Error during COPY operation: {e}")
                         connection.rollback()
@@ -111,7 +111,7 @@ def insert_domains_temp_table(connection, file_path, domain_column, batch_size=1
                 
                 progress_bar.close()
             
-            # Insert domains into the permanent table with retry logic
+            # Insert domains into the permanent table with conflict handling
             for attempt in range(3):
                 try:
                     with connection.cursor() as cursor:
