@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Domain {
+  id               String           @id @default(cuid())
+  domain           String           @unique
+  rankings         Ranking[]
+  majestic_rankings MajesticRanking[]
+  domcop_rankings   DomCopRanking[]
+  domain_info       DomainInfo?
+  domain_source     DomainSource?
+  domain_page       DomainPage?
+
+  @@map("domains")
+}
+
+model Ranking {
+  id         Int      @id @default(autoincrement())
+  domain_id  String
+  domain     Domain   @relation(fields: [domain_id], references: [id])
+  system     String
+  rank       Int
+  update_date DateTime @default(now())
+  data_date   DateTime
+  version    String   @db.VarChar(20)
+
+  @@unique([domain_id, system, version])
+  @@index([system, version])
+  @@map("rankings")
+}
+
+model MajesticRanking {
+  id               Int      @id @default(autoincrement())
+  domain_id        String
+  domain           Domain   @relation(fields: [domain_id], references: [id])
+  data_date        DateTime
+  global_rank      Int
+  tld_rank         Int
+  tld              String
+  ref_subnets      Int
+  ref_ips          Int
+  idn_domain       String?
+  idn_tld          String?
+  prev_global_rank Int?
+  prev_tld_rank    Int?
+  prev_ref_subnets Int?
+  prev_ref_ips     Int?
+  update_date      DateTime @default(now())
+
+  @@unique([domain_id, data_date])
+  @@index([data_date])
+  @@map("majestic_rankings")
+}
+
+model DomCopRanking {
+  id             Int      @id @default(autoincrement())
+  domain_id      String
+  domain         Domain   @relation(fields: [domain_id], references: [id])
+  data_date      DateTime
+  domcop_rank    Int
+  open_page_rank Float
+  update_date    DateTime @default(now())
+
+  @@unique([domain_id, data_date])
+  @@index([data_date])
+  @@map("domcop_rankings")
+}
+
+model DomainIndustry {
+  domain   String @id @db.VarChar(255)
+  industry String @db.VarChar(100)
+
+  @@index([industry])
+  @@map("domain_industries")
+}
+
+model DomainCountry {
+  domain       String @id @db.VarChar(255)
+  country_code String @db.Char(2)
+
+  @@index([country_code])
+  @@map("domain_countries")
+}
+
+model DomainAge {
+  domain            String   @id @db.VarChar(255)
+  registration_date DateTime
+  first_seen_date   DateTime
+  last_seen_date    DateTime
+
+  @@map("domain_age")
+}
+
+model DomainInfo {
+  id          Int      @id @default(autoincrement())
+  domain_id   String   @unique
+  domain      Domain   @relation(fields: [domain_id], references: [id])
+  lang        String
+  currency    String
+  links       String[]
+  prices      String[]
+  price_plans String?
+  html_path   String?
+  md_path     String?
+  update_date DateTime @default(now())
+
+  @@map("domain_info")
+}
+
+model DomainSource {
+  id                 Int      @id @default(autoincrement())
+  domain_id          String   @unique
+  domain             Domain   @relation(fields: [domain_id], references: [id])
+  index_date         String
+  about_the_source   String[]
+  in_their_own_words String
+  update_date        DateTime @default(now())
+
+  @@map("domain_sources")
+}
+
+model DomainPage {
+  id               Int      @id @default(autoincrement())
+  domain_id        String   @unique
+  domain           Domain   @relation(fields: [domain_id], references: [id])
+  page_title       String
+  page_description String
+  page_text        String   @db.Text
+  page_md          String   @db.Text
+  h1_title         String
+  update_date      DateTime @default(now())
+
+  @@map("domain_pages")
+}
