@@ -1,783 +1,97 @@
-#!/usr/bin/env python
-
-import asyncio
-import logging
-import json
-import re
-import os, random
-from datetime import datetime
-
 import pandas as pd
-from DataRecorder import Recorder
 import time
-import aiohttp_socks
+import os
+import datetime
+import csv
 
-import httpx
+# Configuration
+input_file = 'input_urls.csv'  # Path to the input CSV file containing URLs
+log_file = 'processed_urls.log'  # Path to the log file where processed URLs will be stored
+batch_size = 10000  # Number of URLs to process in each batch
+retry_limit = 3  # Maximum number of retries per URL
 
-# try:
-#     import aiofiles
-# except ImportError:
-#     raise ImportError('missing required aiofiles library (pip install aiofiles)')
+def read_csv(input_file):
+    """Reads the input CSV file and returns the data."""
+    # Assuming no header, col1: no, col2: url
+    return pd.read_csv(input_file, header=None, names=['no', 'url'])
 
-try:
-    import aiohttp
-except ImportError:
-    raise ImportError("missing required aiohttp library (pip install aiohttp)")
-import asyncio
-from contextlib import asynccontextmanager
-from dbhelper import DatabaseManager
+def get_last_processed(log_file):
+    """Reads the log file and returns the last processed URL number."""
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as log:
+            lines = log.readlines()
+            if lines:
+                return int(lines[-1].strip())  # Get the last processed URL number
+    return 0
 
-# Usage
-# Now you can use db_manager.add_screenshot(), db_manager.read_screenshot_by_url(), etc.
-from loguru import logger
-import threading
-from DPhelper import DPHelper
+def log_processed(log_file, processed_no):
+    """Logs the processed URL number."""
+    with open(log_file, 'a') as log:
+        log.write(f"{processed_no}\n")
 
-
-# Replace this with your actual test URL
-test_url = "http://example.com"
-
-
-MAX_RETRIES = 3
-INITIAL_DELAY = 1
-MAX_DELAY = 10
-from queue import PriorityQueue, Queue
-
-work_queue = Queue()
-
-
-from bs4 import BeautifulSoup
-import asyncio
-import aiohttp
-import time
-
-tld_types = {}
-country_cctlds_symbols = {}
-country_symbols = {}
-# Semaphore to control concurrency
-semaphore = threading.Semaphore(8)  # Allow up to 5 concurrent tasks
-
-# db_manager = DatabaseManager()
-filename = "majestic_million"
-# filename='toolify.ai-organic-competitors--'
-filename = "cftopai"
-filename = "toolify-top500"
-# filename='character.ai-organic-competitors--'
-# filename='efficient.app-organic-competitors--'
-# filename='top-domains-1m'
-# filename='artifacts'
-# filename='ahref-top'
-# filename='builtwith-top'
-filename = "./tranco_Z377G"
-filename = "domain-1year"
-filename = "domain-2year"
-filename = "domain-ai"
-
-folder_path = "."
-inputfilepath = filename + ".csv"
-# logger.add(f"{folder_path}/domain-index-ai.log")
-# logger.info(domains)
-outfilepath = inputfilepath.replace(".csv", "-prices.csv")
-# outfilepath = "top-domains-1m-price.csv"
-
-outfile = Recorder(folder_path + "/" + outfilepath, cache_size=10)
-outcffilepath = inputfilepath.replace(".csv", "-prices-cfblock.csv")
-
-outcffile = Recorder(folder_path + "/" + outcffilepath, cache_size=10)
-
-
-def get_tld_types():
-    # create a key of tlds and their types using detailed csv
-    # tld_types = {}
-    with open("tld-list-details.csv", "r", encoding="utf8") as f:
-        for line in f:
-            terms = line.strip().replace('"', "").split(",")
-            tld_types[terms[0]] = terms[1]
-            # print('==',tld_types[terms[0]] )
-
-
-def get_cctld_symbols():
-    country_codes = {}
-    country_cctlds = {}
-
-    with open("IP2LOCATION-COUNTRY-INFORMATION.CSV", "r", encoding="utf8") as f:
-        for line in f:
-            terms = line.split(",")
-            # print(len(terms),terms)
-            if len(terms) > 11:
-                country_code = terms[0].replace('"', "")
-                country_name = terms[1].replace('"', "")
-                cctld = terms[-1].replace('"', "").replace("\n", "")
-                symbol = terms[11].replace('"', "").replace("\n", "")
-
-                country_codes[country_code] = country_name
-                country_cctlds[cctld] = country_name
-                country_cctlds_symbols[cctld] = symbol
-                country_symbols[country_code] = symbol
-
-
-def get_tld(domain: str):
-    """Extracts the top-level domain from a domain name."""
-    parts = domain.split(".")
-    return ".".join(parts[1:]) if len(parts) > 1 else parts[0]
-
-
-def get_proxy():
-    proxy = None
-    with aiohttp.ClientSession() as session:
-        try:
-            with session.get("http://demo.spiderpy.cn/get") as response:
-                data = response.json()
-                proxy = data["proxy"]
-                return proxy
-        except:
-            pass
-
-
-def get_proxy_proxypool():
-    with aiohttp.ClientSession() as session:
-
-        if proxy is None:
-            try:
-                with session.get("https://proxypool.scrape.center/random") as response:
-                    proxy = response.text()
-                    return proxy
-            except:
-                return None
-
-
-language_codes = {
-    "aa": "Afar",
-    "ab": "Abkhazian",
-    "af": "Afrikaans",
-    "am": "Amharic",
-    "ar": "Arabic",
-    "as": "Assamese",
-    "ay": "Aymara",
-    "az": "Azerbaijani",
-    "ba": "Bashkir",
-    "be": "Belarusian",
-    "bg": "Bulgarian",
-    "bh": "Bihari",
-    "bi": "Bislama",
-    "bn": "Bengali",
-    "bo": "Tibetan",
-    "br": "Breton",
-    "ca": "Catalan",
-    "cs": "Czech",
-    "cy": "Welsh",
-    "da": "Danish",
-    "de": "German",
-    "dz": "Dzongkha",
-    "el": "Greek",
-    "en": "English",
-    "eo": "Esperanto",
-    "es": "Spanish",
-    "et": "Estonian",
-    "eu": "Basque",
-    "fa": "Persian",
-    "fi": "Finnish",
-    "fj": "Fijian",
-    "fo": "Faroese",
-    "fr": "French",
-    "fy": "Western Frisian",
-    "ga": "Irish",
-    "gd": "Scottish Gaelic",
-    "gl": "Galician",
-    "gn": "Guarani",
-    "gu": "Gujarati",
-    "ha": "Hausa",
-    "he": "Hebrew",
-    "hi": "Hindi",
-    "hr": "Croatian",
-    "hu": "Hungarian",
-    "hy": "Armenian",
-    "ia": "Interlingua",
-    "id": "Indonesian",
-    "ie": "Interlingue",
-    "is": "Icelandic",
-    "it": "Italian",
-    "ja": "Japanese",
-    "jv": "Javanese",
-    "ka": "Georgian",
-    "kk": "Kazakh",
-    "kl": "Kalaallisut",
-    "km": "Khmer",
-    "kn": "Kannada",
-    "ko": "Korean",
-    "ks": "Kashmiri",
-    "ku": "Kurdish",
-    "ky": "Kirundi",
-    "la": "Latin",
-    "ln": "Lingala",
-    "lo": "Lao",
-    "lt": "Lithuanian",
-    "lv": "Latvian",
-    "mg": "Malagasy",
-    "mi": "Maori",
-    "mk": "Macedonian",
-    "ml": "Malayalam",
-    "mn": "Mongolian",
-    "mo": "Moldavian",
-    "mr": "Marathi",
-    "ms": "Malay",
-    "mt": "Maltese",
-    "my": "Burmese",
-    "na": "Nauru",
-    "ne": "Nepali",
-    "nl": "Dutch",
-    "no": "Norwegian",
-    "oc": "Occitan",
-    "om": "Oromo",
-    "or": "Oriya",
-    "pa": "Punjabi",
-    "pl": "Polish",
-    "ps": "Pashto",
-    "pt": "Portuguese",
-    "qu": "Quechua",
-    "rm": "Romansh",
-    "rn": "Rundi",
-    "ro": "Romanian",
-    "ru": "Russian",
-    "rw": "Kinyarwanda",
-    "sa": "Sanskrit",
-    "sc": "Sardinian",
-    "sd": "Sindhi",
-    "se": "Northern Sami",
-    "sg": "Sango",
-    "sh": "Serbo-Croatian",
-    "si": "Sinhalese",
-    "sk": "Slovak",
-    "sl": "Slovene",
-    "sm": "Samoan",
-    "sn": "Shona",
-    "so": "Somali",
-    "sq": "Albanian",
-    "sr": "Serbian",
-    "ss": "Swati",
-    "st": "Sotho",
-    "su": "Sudanese",
-    "sv": "Swedish",
-    "sw": "Swahili",
-    "ta": "Tamil",
-    "te": "Telugu",
-    "tg": "Tajik",
-    "th": "Thai",
-    "ti": "Tigrinya",
-    "tk": "Turkmen",
-    "tl": "Tagalog",
-    "tn": "Tswana",
-    "to": "Tonga",
-    "tr": "Turkish",
-    "ts": "Tsonga",
-    "tt": "Tatar",
-    "tw": "Twi",
-    "ug": "Uighur",
-    "uk": "Ukrainian",
-    "ur": "Urdu",
-    "uz": "Uzbek",
-    "vi": "Vietnamese",
-    "vo": "Volapük",
-    "wo": "Wolof",
-    "xh": "Xhosa",
-    "xx-bork": "Bork, bork, bork!",  # A fun, fictional language code
-    "xx-hylian": "Hylian",  # A fictional language from the Legend of Zelda
-    "yi": "Yiddish",
-    "yo": "Yoruba",
-    "za": "Zhuang",
-    "zh": "Chinese",
-    "zu": "Zulu",
-}
-
-
-# Example usage
-# language_code = 'fr'
-# print(f"The language code '{language_code}' is for {get_language_name(language_code)}.")s
-def get_language_name(rawtx):
-    import py3langid as langid
-
-    lang = langid.classify(rawtx)
-    lagname = language_codes.get(lang, "English")
-    return lagname
-
-
-def get_country_symbols(rawtx):
-    import py3langid as langid
-
-    lang = langid.classify(rawtx)
-    currencylabel = country_symbols.get(lang, "$")
-    return currencylabel
-
-
-def get_text(html):
-    soup = BeautifulSoup(html, "html.parser")
-    return soup.get_text()
-
-
-# Function to extract price data from HTTP response
-async def extract_price(html_content, domain):
+def process_url(url, retry=0):
+    """Process a URL with retries if it fails."""
     try:
-        # html_content = await response.text()
-
-        # Extract text content from HTML
-        text_content = get_text(html_content)
-        tld = get_tld(domain)
-        currency_symbol = "$"
-        if tld_types[tld] == "ccTLD":
-            currency_symbol = country_cctlds_symbols(tld)
-
-        # Search for price information in the text content
-        if not currency_symbol:
-            currency_symbol = "$"
-        escaped_symbol = re.escape(currency_symbol)
-        # Construct regex pattern to match currency_symbol followed by digits and a decimal
-        pattern = r"({}[\d,]+\.\d{{2}})".format(escaped_symbol)
-        prices = re.findall(pattern, text_content)
-
-        if prices:
-            logger.info(f"Found prices for {domain}: {prices}")
-
-            # Example additional processing or logging
-            data = {
-                "domain": domain,
-                "priceurl": domain.split("/")[-1],
-                "prices": prices,
-                "raw": text_content.replace("\r", "").replace("\n", ""),
-            }
-
-            # Logging the extracted data
-            logger.info(data)
-
-            # Add data to the recorder (modify as per your Recorder class)
-            outfile.add_data(data)
-
-            return True
-        else:
-            logger.info(f"No prices found for {domain}")
-            return False
-
-    except aiohttp.ClientConnectionError:
-        logger.error(f"Client connection error while extracting prices for {domain}")
-
+        # Placeholder for URL processing logic (e.g., web scraping, API call)
+        print(f"Processing URL: {url}")
+        # Simulating URL processing time
+        time.sleep(0.1)
+        return f"Processed {url}"
     except Exception as e:
-        logger.error(f"Exception occurred while extracting prices for {domain}: {e}")
+        if retry < retry_limit:
+            print(f"Retrying URL {url} due to error: {e}")
+            return process_url(url, retry + 1)
+        else:
+            print(f"Failed to process URL {url} after {retry_limit} retries")
+            return None
+
+def process_batch(data, start_idx, batch_size):
+    """Process a batch of URLs from the given index."""
+    end_idx = start_idx + batch_size
+    batch = data.iloc[start_idx:end_idx]
+    
+    results = []
+    for index, row in batch.iterrows():
+        result = process_url(row['url'])
+        if result:
+            results.append({'no': row['no'], 'result': result})
+
+    return results, batch
+
+def save_results_to_csv(results, start_no, end_no):
+    """Save results to a CSV file with a timestamped filename."""
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_file = f"processed_urls_{start_no}-{end_no}_{timestamp}.csv"
+    
+    if results:
+        df = pd.DataFrame(results)
+        df.to_csv(output_file, index=False)
+        print(f"Results saved to {output_file}")
+
+def main():
+    # Load the CSV data
+    data = read_csv(input_file)
+
+    # Get the last processed URL number
+    last_processed = get_last_processed(log_file)
+    print(f"Resuming from URL number {last_processed}")
+
+    # Start processing in batches
+    start_idx = last_processed
+    while start_idx < len(data):
+        # Process the next batch
+        results, batch = process_batch(data, start_idx, batch_size)
+
+        # Log the processed URLs
+        for index, row in batch.iterrows():
+            log_processed(log_file, row['no'])
+
+        # Save results to a CSV file
+        save_results_to_csv(results, batch['no'].iloc[0], batch['no'].iloc[-1])
+
+        # Update the start index for the next batch
+        start_idx += batch_size
+        print(f"Processed batch {batch['no'].iloc[0]} - {batch['no'].iloc[-1]}")
 
-
-async def submit_radar_with_cookie(
-    browser,
-    domain: str,
-    url: str,
-    valid_proxies: list,
-    proxy_url: str,
-    outfile: Recorder,
-):
-    async with semaphore:
-
-        retry_count = 0
-        page = browser.new_tab()
-        url = "https://" + url if "https" not in url else url
-        try:
-            # with semaphore:
-            cookies = None
-            if work_queue.qsize() == 0:
-                cookies = get_fresh_cookie(page, domain, url, proxy_url)
-            if cookies:
-
-                result = await fetch_data(
-                    url, valid_proxies=None, data_format="text", cookies=cookies
-                )
-
-                if result:
-                    extract_price(result, domain=domain)
-                    if proxy_url and proxy_url not in valid_proxies:
-                        valid_proxies.append(proxy_url)
-                    return result
-        except asyncio.TimeoutError:
-            logger.error(
-                f"Timeout occurred for domain: {domain} with proxy: {proxy_url}"
-            )
-        except Exception as e:
-            logger.error(f"Error occurred: {e}")
-
-
-# Function to simulate a task asynchronously
-async def fetch_data(url, valid_proxies=None, data_format="json", cookies=None):
-
-    retries = 4
-    for attempt in range(1, retries + 1):
-        try:
-            logger.debug("staaartt to get data")
-            proxy_url = None  # Example SOCKS5 proxy URL
-            if attempt == 3:
-                if valid_proxies:
-                    proxy_url = random.choice(valid_proxies)
-            elif attempt == 2:
-                # proxy_url=await get_proxy_proxypool()
-                proxy_url = "socks5://127.0.0.1:1080"  # Example SOCKS5 proxy URL
-            elif attempt == 4:
-                proxy_url = await get_proxy()
-            # proxy_url = "socks5://127.0.0.1:9050"  # Example SOCKS5 proxy URL
-            connector = (
-                aiohttp_socks.ProxyConnector.from_url(proxy_url)
-                if proxy_url and proxy_url.startswith("socks")
-                else None
-            )
-            proxy = proxy_url if proxy_url and "http" in proxy_url else None
-            print("===proxy", proxy, url)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                async with session.get(url, proxy=proxy, cookies=cookies) as response:
-                    if response.status == 200:
-                        # data = await extract_indedate(response, domain)
-                        # print('data',data)
-                        print(f"Task {url} completed on attempt {attempt}.")
-                        return (
-                            await response.json()
-                            if data_format == "json"
-                            else await response.text()
-                        )
-                    else:
-                        print(
-                            f"Task {url} failed on attempt {attempt}. Status code: {response.status}"
-                        )
-        except aiohttp.ClientConnectionError:
-            if attempt < retries:
-                print(f"Task {url} failed on attempt {attempt}. Retrying...")
-            else:
-                print(f"Task {url} failed on all {retries} attempts. Skipping.")
-                # outfileerror.add_data([domain])
-
-        except Exception:
-            if attempt < retries:
-                print(f"Task {url} failed on attempt {attempt}. Retrying...")
-            else:
-                print(f"Task {url} failed on all {retries} attempts. Skipping.")
-                # outfileerror.add_data([domain])
-
-
-def get_price_dp(browser, domain: str, url: str, proxy_url: str):
-    """
-    Looks up a domain using the RDAP protocol.
-
-    :param domain: The domain to look up.
-    :param proxy_url: The proxy URL to use for the request.
-    :param semaphore: The semaphore to use for concurrency limiting.
-    """
-    with semaphore:
-
-        url = "https://" + url if "https" not in url else url
-
-        query_url = url
-
-        logger.info("use proxy_url:{}", proxy_url)
-
-        logger.info("querying:{}", query_url)
-        # page = None
-        try:
-            headless
-        except:
-            headless = True
-
-        try:
-
-            # page.set.load_mode.eager()
-            page = browser.new_tab()
-            # page.get(query_url, retry=1, interval=1, timeout=15)
-
-            page.get(query_url)
-            page.wait.load_start()
-            # dp.autopass()
-            # page.bypass(query_url)
-
-            if page.html:
-                logger.info("start to check bypass")
-                if page.ele("#turnstile-wrapper"):
-                    print("detected turnstitle")
-                    iframe_ele = (
-                        page.ele("#turnstile-wrapper")
-                        .child()
-                        .child()
-                        .shadow_root.child()
-                    )
-                    input_ele = iframe_ele("tag:html").children()[1].sr("t:input")
-                    input_ele.click()
-                if "<title>Please Wait... | Cloudflare</title>" not in page.html:
-                    print("cf challenge success")
-                else:
-                    raise InterruptedError("cf challenge failed")
-                logger.info("start to get data")
-                rawte = page.ele("tag:html").text
-                lang = get_language_name(rawte)
-                currency_symbol = get_country_symbols(rawte)
-
-                links = []
-                logger.info("check price link")
-                if page.ele("@href:price"):
-                    links.append(page.ele("@href:price").link)
-                logger.info("check pricing link")
-
-                if page.ele("@href:pricing"):
-                    links.append(page.ele("@href:pricing").link)
-                logger.info("check purchase link")
-
-                if page.ele("@href:purchase"):
-                    links.append(page.ele("@href:purchase").link)
-                logger.info("check premium link")
-
-                if page.ele("@href:premium"):
-                    links.append(page.ele("@href:premium").link)
-                logger.info("check upgrade link")
-
-                if page.ele("@href:upgrade"):
-                    links.append(page.ele("@href:upgrade").link)
-                prices = []
-                if len(links) > 0:
-                    logger.info("check price text")
-
-                    # data = page.cookies(as_dict=False)
-                    tld = get_tld(domain)
-                    logger.info(f"tld:{tld}={ tld_types[tld]}")
-
-                    if not currency_symbol:
-                        if tld_types[tld] in ["gTLD", "sTLD", "grTLD"]:
-                            currency_symbol = "$"
-
-                        elif tld_types[tld] == "ccTLD":
-                            currency_symbol = country_cctlds_symbols[tld]
-                    logger.info(f"currency_symbol:{currency_symbol}")
-                    # Search for price information in the text content
-
-                    escaped_symbol = re.escape(currency_symbol)
-                    # Construct regex pattern to match currency_symbol followed by digits and a decimal
-                    pattern = r"({}[\d,]+\.\d{{2}})".format(escaped_symbol)
-
-                    prices = re.findall(pattern, page.ele("tag:body").text)
-                    # pricethere='price' in page.html or 'pricing' in page.html
-                    logger.info(f"prices texts:{prices}")
-
-                logger.info(f"Found prices for {domain}: {prices}")
-                prcieplan=None
-                try:
-                    prcieplan = page.ele("tag:section@@text():pric").text
-                    if not prcieplan:
-                        prcieplan = page.ele("tag:div@@text():pric").text
-                except:
-                    pass
-                # Example additional processing or logging
-                logger.info('add data')
-                data = {
-                    "domain": domain,
-                    # 'priceurl': domain.split('/')[-1],
-                    "links": links,
-                    "prices": prices,
-                    "price-plans": prcieplan,
-                    "raw": json.dumps(rawte),
-                    "lang": lang
-                }
-
-                # Logging the extracted data
-                # logger.info(data)
-
-                # Add data to the recorder (modify as per your Recorder class)
-                outfile.add_data(data)
-                logger.info('save data')
-
-                page.close()
-
-                return data
-        except asyncio.TimeoutError as e:
-
-            # page.close()
-
-            raise
-
-        except aiohttp.ClientError as e:
-
-            # page.close()
-
-            raise
-
-        except Exception as e:
-
-            print(f"start a new browser to get fresh :{e}")
-            # page.close()
-
-        finally:
-            try:
-                if page:
-                    page.close()
-                # if  browser:
-                #     browser.close()
-                print("finally")
-            except:
-                pass
-
-
-# To run the async function, you would do the following in your main code or script:
-# asyncio.run(test_proxy('your_proxy_url_here'))
-def cleandomain(domain):
-    if isinstance(domain, str) == False:
-        domain = str(domain)
-    domain = domain.strip()
-    if "https://" in domain:
-        domain = domain.replace("https://", "")
-    if "http://" in domain:
-        domain = domain.replace("http://", "")
-    if "www." in domain:
-        domain = domain.replace("www.", "")
-    if domain.endswith("/"):
-        domain = domain.rstrip("/")
-    return domain
-
-
-def getlocalproxies():
-
-    raw_proxies = []
-
-    for p in ["http", "socks4", "socks5"]:
-        proxyfile = r"D:\Download\audio-visual\a_proxy_Tool\proxy-scraper-checker\out-google\proxies\{p}.txt"
-
-        proxy_dir = r"D:\Download\audio-visual\a_proxy_Tool\proxy-scraper-checker\out-google\proxies"
-        proxyfile = os.path.join(proxy_dir, f"{p}.txt")
-        if os.path.exists(proxyfile):
-
-            tmp = open(proxyfile, "r", encoding="utf8").readlines()
-            tmp = list(set(tmp))
-            logger.info("p", p, len(tmp))
-            raw_proxies += [f"{p}://" + v.replace("\n", "") for v in tmp if "\n" in v]
-
-    raw_proxies = list(set(raw_proxies))
-    logger.info("raw count", len(raw_proxies))
-    valid_proxies = []
-    # checktasks=[]
-    # for proxy_url in raw_proxies:
-    #     task = asyncio.create_task(test_proxy('https://revved.com',proxy_url))
-    #     checktasks.append(task)
-
-    # for task in checktasks:
-    #     good = await task
-    #     if good:
-    #         valid_proxies.append(proxy_url)
-    valid_proxies = raw_proxies
-    logger.info("clean count", len(valid_proxies))
-    return valid_proxies
-
-
-# Function to run tasks asynchronously with specific concurrency
-async def run_async_tasks():
-    tasks = []
-    df = pd.read_csv(inputfilepath, encoding="ISO-8859-1")
-    # df = df[df['domain'].str.contains('.ai', case=False, na=False)]
-
-    # filtered_df = df[df['indexdate'] != 'unk']
-    # filtered_df = df[df['indexdate'].str.contains('month', case=False, na=False)]
-
-    # # filtered_df = df[df['indexdate'].str.contains('1 year', case=False, na=False)]
-
-    # domains=filtered_df['domain'].to_list()
-
-    # domains=set(domains)
-    # df1year = pd.DataFrame(domains, columns=['domain'])
-    # df1year.to_csv('domain-1year.csv')
-    dp = DPHelper(
-        browser_path=None,
-        HEADLESS=False,
-        # ,proxy_server='socks5://127.0.0.1:1080'
-    )
-
-    domains = df["domain"].to_list()
-
-    domains = set(domains)
-    logger.info(f"load domains：{len(domains)}")
-    donedomains = []
-    # domains=['tutorai.me','magicslides.app']
-    # try:
-    #     db_manager = DatabaseManager()
-
-    #     dbdata=db_manager.read_domain_all()
-
-    #     for i in dbdata:
-    #         if i.title is not None:
-    #             donedomains.append(i.url)
-    # except Exception as e:
-    #     logger.info(f'query error: {e}')
-    alldonedomains = []
-
-    if os.path.exists(outfilepath):
-        df = pd.read_csv(
-            outfilepath
-            #    ,encoding="ISO-8859-1"
-        )
-        alldonedomains = df["domain"].to_list()
-    # else:
-    # df=pd.read_csv('top-domains-1m.csv')
-
-    # donedomains=df['domain'].to_list()
-    alldonedomains = set(alldonedomains)
-
-    logger.info(f"load alldonedomains:{len(list(alldonedomains))}")
-    valid_proxies = getlocalproxies()
-
-    donedomains = [element for element in domains if element in alldonedomains]
-    logger.info(f"load done domains {len(donedomains)}")
-    tododomains = list(set([cleandomain(i) for i in domains]) - set(donedomains))
-    logger.info(f"to be done {len(tododomains)}")
-
-    for domain in tododomains:
-
-        domain = cleandomain(domain)
-
-        if not ".ai" in domain:
-            continue
-        # if not  domain.split('.')[0].endswith("ai"):
-        #     continue
-        # if not  domain.split('.')[0].startswith("ai"):
-        #     continue
-
-        print(domain)
-
-        for suffix in [
-            ""
-            #    ,'premium','price','#price','#pricing','pricing','price-plan','pricing-plan','upgrade','purchase'
-        ]:
-
-            url = domain + suffix
-
-            try:
-
-                task = threading.Thread(
-                    target=get_price_dp, args=(dp.driver, domain, url, None)
-                )
-                tasks.append(task)
-                task.start()
-            except Exception as e:
-                print(f"An error occurred while processing {domain}: {e}")
-            if len(tasks) >= 10:
-
-                [task.join() for task in tasks]
-                tasks = []
-    for task in tasks:
-        task.join()
-
-
-# Example usage: Main coroutine
-async def main():
-    start_time = time.time()
-    get_tld_types()
-    get_cctld_symbols()
-    await run_async_tasks()
-    logger.info(
-        f"Time taken for asynchronous execution with concurrency limited by semaphore: {time.time() - start_time} seconds"
-    )
-
-
-# Manually manage the event loop in Jupyter Notebook or other environments
 if __name__ == "__main__":
-    logger.add(filename + "price-debug.log")
-
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(main())
-    finally:
-        loop.close()
-    outfile.record()
-    outcffile.record()
+    main()
