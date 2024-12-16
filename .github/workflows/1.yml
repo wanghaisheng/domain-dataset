@@ -1,0 +1,40 @@
+name: URL Processing and Commit Results
+
+on:
+  push:
+    branches:
+      - main  # Run on push to main branch, change if needed
+  schedule:
+    - cron: '0 0 * * *'  # Runs once every day at midnight (UTC), you can adjust the schedule
+  workflow_dispatch:  # Allows you to trigger it manually via GitHub Actions UI
+
+jobs:
+  process_urls:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'  # Set Python version you prefer
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas  # Install the pandas library for CSV handling
+
+    - name: Run Python script to process URLs
+      run: |
+        python prices/main.py  # Replace with your actual script name
+
+    - name: Commit result files to repository
+      run: |
+        # Stage and commit the new result CSV files
+        git add -A  # Adjust file pattern as needed
+        git commit -m "Processed URL batch results $(date +'%Y-%m-%d %H:%M:%S')"
+        git push origin main  # Push the changes back to the main branch
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Token to commit changes back to repo
