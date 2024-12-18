@@ -1,11 +1,12 @@
 name: Daily Update Top 1m Domains
 # https://github.com/adysec/top_1m_domains/blob/main/.github/workflows/main.yml
 on:
-  push:
-    branches:
-      - main
-  schedule:
-    - cron: '0 12 * * *'
+  repository_dispatch:
+  # push:
+    # branches:
+      # - main
+  # schedule:
+    # - cron: '0 12 * * *'
 
 jobs:
   build:
