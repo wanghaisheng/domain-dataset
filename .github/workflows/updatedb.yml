@@ -1,0 +1,27 @@
+name: Daily save rank  Run
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs at midnight UTC every day
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  run_script:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3  # Checks out the code from the repository
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'  # Specify the Node.js version, e.g., 16.x
+
+      - name: Install dependencies
+        run: |
+          npm install  # Install dependencies from package.json
+
+      - name: Run the script
+        run: |
+          node rankhistory/updatedaily.js  # Replace with the actual path to your script
