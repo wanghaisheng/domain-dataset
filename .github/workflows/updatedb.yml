@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install  # Install dependencies from package.json
+          npm install axios @libsql/client csv-parser unzipper
 
       - name: Run the script
         run: |
